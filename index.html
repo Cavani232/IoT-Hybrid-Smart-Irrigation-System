@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Smart Irrigation Dashboard</title>
+  <link
+    href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap"
+    rel="stylesheet" />
+  <script src="chart.umd.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+
+  <!-- ═══════════════════ HEADER ═══════════════════ -->
+  <header>
+    <div class="header-left">
+      <span class="header-icon">🌿</span>
+      <div>
+        <h1>Smart Irrigation System</h1>
+        <div class="header-sub">IoT based Smart Irrigation System For Small scale farmers</div>
+      </div>
+    </div>
+    <div class="conn-badge online" id="connBadge">
+      <div class="conn-dot"></div>
+      <span id="connText">Connecting...</span>
+    </div>
+  </header>
+
+  <!-- ═══════════════════ MAIN ═══════════════════ -->
+  <div class="main">
+
+    <!-- ── SECTION i: Live Status ── -->
+    <div class="section-label">📡 Live Status</div>
+    <div class="stats-row">
+
+      <!-- Soil Moisture -->
+      <div class="card stat-card">
+        <div class="card-title">Soil Moisture</div>
+        <div class="stat-value" id="soilVal" style="color:var(--green)">---</div>
+        <div class="progress-track">
+          <div class="progress-fill" id="soilBar" style="background:var(--green);width:0%"></div>
+        </div>
+        <div class="stat-sub" id="soilLabel" style="color:var(--text-muted)">—</div>
+        <div class="stat-advice" id="soilAdvice">Waiting for sensor data...</div>
+      </div>
+
+      <!-- Temperature -->
+      <div class="card stat-card">
+        <div class="card-title">Air Temperature</div>
+        <div class="stat-value" id="tempVal" style="color:var(--amber)">---</div>
+        <div class="progress-track">
+          <div class="progress-fill" id="tempBar" style="background:var(--amber);width:0%"></div>
+        </div>
+        <div class="stat-sub" id="tempLabel" style="color:var(--text-muted)">—</div>
+      </div>
+
+      <!-- Humidity -->
+      <div class="card stat-card">
+        <div class="card-title">Air Humidity</div>
+        <div class="stat-value" id="humVal" style="color:var(--blue)">---</div>
+        <div class="progress-track">
+          <div class="progress-fill" id="humBar" style="background:var(--blue);width:0%"></div>
+        </div>
+        <div class="stat-sub" id="humLabel" style="color:var(--text-muted)">—</div>
+      </div>
+
+      <!-- Pump Status -->
+      <div class="card pump-card">
+        <div class="card-title">Water Pump</div>
+        <div class="pump-badge off" id="pumpBadge">
+          <div class="pump-dot"></div>
+          <span id="pumpText">OFF</span>
+        </div>
+        <div class="pump-meta" id="pumpDetail">Pump is idle - monitoring continues.</div>
+        <div class="pump-meta" id="pumpMeta">Pump state: OFF</div>
+        <div class="pump-meta" id="volToday">Today: 0.00 L used</div>
+        <div class="reservoir-warn" id="reservoirWarn">⚠ Water tank appears empty - please refill</div>
+      </div>
+
+    </div>
+
+    <!-- ── SECTION ii: Sensor History Chart ── -->
+    <div class="section-label">📈 Sensor History — Last 24 Hours</div>
+    <div class="mid-row">
+
+      <div class="card chart-card">
+        <div class="chart-header">
+          <div class="chart-legend">
+            <div class="legend-item">
+              <div class="legend-dot" style="background:var(--green)"></div>Soil Moisture
+            </div>
+            <div class="legend-item">
+              <div class="legend-dot" style="background:var(--amber)"></div>Temperature
+            </div>
+            <div class="legend-item">
+              <div class="legend-dot" style="background:var(--blue)"></div>Humidity
+            </div>
+          </div>
+          <div class="live-indicator">
+            <div class="live-dot" id="liveDot"></div>
+            <span id="liveText">Live · updating</span>
+          </div>
+        </div>
+        <div class="chart-wrap">
+          <canvas id="sensorChart"></canvas>
+        </div>
+      </div>
+
+      <!-- System Health -->
+      <div class="card">
+        <div class="card-title">⚙ System Health</div>
+        <div class="health-row">
+          <span class="health-label">Last data sync</span>
+          <span class="health-value" id="lastSync">—</span>
+        </div>
+        <div class="health-row">
+          <span class="health-label">System uptime</span>
+          <span class="health-value" id="uptime">—</span>
+        </div>
+        <div class="health-row">
+          <span class="health-label">SD Card</span>
+          <span class="tag tag-green" id="sdStatus">Checking...</span>
+        </div>
+        <div class="health-row">
+          <span class="health-label">Wi-Fi Signal</span>
+          <span class="health-value" id="wifiRssi">—</span>
+        </div>
+        <div class="health-row">
+          <span class="health-label">Connection</span>
+          <span class="tag tag-green" id="connMode">—</span>
+        </div>
+        <div class="health-row">
+          <span class="health-label">Avg moisture (session)</span>
+          <span class="health-value" id="avgMoisture">—</span>
+        </div>
+        <div class="health-row">
+          <span class="health-label">SD sync logs</span>
+          <span class="health-value" id="sdSyncFiles" style="font-size:11px">—</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ── SECTION iii: Irrigation Event Log ── -->
+    <div class="section-label">🗂 Irrigation Event Log</div>
+    <div class="card">
+      <div id="eventSummary" class="event-summary"></div>
+      <table class="log-table">
+        <thead>
+          <tr>
+            <th>Date &amp; Time</th>
+            <th>Duration</th>
+            <th>Water Used</th>
+            <th>How it started</th>
+            <th>Result</th>
+          </tr>
+        </thead>
+        <tbody id="eventLog">
+          <tr>
+            <td colspan="5" style="color:var(--text-muted);font-size:12px;padding:16px 0;text-align:center">Waiting for
+              irrigation events...</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- ── SECTION: Offline EEPROM Sync Log ── -->
+    <div class="section-label">📴 Offline Recovery Log</div>
+    <di class="card" id="offlineSyncCard">
+      <div
+        style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+        <p style="font-size:12px;color:var(--text-secondary);margin:0">
+          Sensor readings captured to EEPROM while the device had no internet. Pushed to cloud on reconnect.
+        </p>
+        <span id="offlineSyncBadge"
+          style="font-size:11px;padding:3px 10px;border-radius:20px;background:#1e293b;color:var(--text-muted)">
+          No offline periods recorded
+        </span>
+      </div>
+
+      <!-- Period summary pills -->
+      <div id="offlinePeriodPills" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;"></div>
+
+      <!-- Records table -->
+      <div style="max-height:320px;overflow-y:auto;border-radius:8px;">
+        <table class="log-table" id="offlineSyncTable" style="margin-bottom:0">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Timestamp</th>
+              <th>Soil Moisture</th>
+              <th>Temperature</th>
+              <th>Humidity</th>
+              <th>Period</th>
+            </tr>
+          </thead>
+          <tbody id="offlineSyncBody">
+            <tr>
+              <td colspan="6" style="color:var(--text-muted);font-size:12px;padding:16px 0;text-align:center">
+                No offline records synced yet.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- ── SECTION iv+v: Interval Reports + Manual Control ── -->
+      <div class="bot-row">
+
+        <!-- Interval Reports -->
+        <div class="card">
+          <div class="card-title">📊 Hourly Summary</div>
+          <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">Average sensor readings and water
+            used
+            each hour.</p>
+          <table class="log-table">
+            <thead>
+              <tr>
+                <th>Hour</th>
+                <th>Avg Soil Moist</th>
+                <th>Avg Temp</th>
+                <th>Avg Humidity</th>
+                <th>Water Used</th>
+              </tr>
+            </thead>
+            <tbody id="intervalTable">
+              <tr>
+                <td colspan="5" style="color:var(--text-muted);font-size:12px;padding:12px 0;text-align:center">
+                  Collecting
+                  hourly data...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Manual Control -->
+        <div class="card control-card">
+          <div class="card-title">🎛 Manual Control</div>
+          <div id="pumpStatusInControl"
+            style="margin-bottom:12px;padding:8px 12px;border-radius:8px;background:var(--bg-card-alt, #0f172a);font-size:13px;">
+            Pump: <strong id="pumpStatusLabel">OFF</strong>
+            <span id="pumpReasonLabel" style="color:var(--text-muted);font-size:11px;margin-left:8px;">—</span>
+          </div>
+
+          <button class="btn btn-start" id="btnStart" onclick="sendCommand('START')">
+            ▶ Start Irrigation Now
+          </button>
+          <button class="btn btn-stop" id="btnStop" onclick="sendCommand('STOP')">
+            ■ Stop Irrigation
+          </button>
+
+          <div class="divider"></div>
+
+          <div class="algo-badge">⚡ Auto-Irrigation Logic Active</div>
+          <p style="font-size:11px;color:var(--text-muted);margin-top:6px;line-height:1.5">System irrigates when soil
+            moisture
+            drops below <strong>50%</strong>. The irrigation volume is calculated using the Hargreaves-Samani ET equation, which adjusts water delivery based on real-time temperature and humidity, followed by a 25-second cooldown to prevent over-cycling, and the pump is automatically blocked when the soil moisture exceeds the saturation threshold.</p>
+        </div>
+
+      </div>
+
+      <!-- ── Offline Gap Log ── -->
+      <div class="section-label">🔔 System Notifications</div>
+      <div class="card">
+        <p style="font-size:12px;color:var(--text-secondary);margin-bottom:14px">
+          Live log of pump events, automatic irrigation decisions, offline sync completions, and system alerts.
+        </p>
+        <div id="offlineGaps">
+          <p class="no-gaps">✅ No connectivity gaps detected this session.</p>
+        </div>
+      </div>
+
+  </div>
+
+  <!-- ═══════════════════ FOOTER ═══════════════════ -->
+  <footer>
+    <span id="footerUpdate">Last update: - ·</span>
+    <span>IoT based Smart Irrigation System For Small scale farmers · Harare, ZW</span>
+  </footer>
+
+  <script src="dashboard.js"></script>
+</body>
+
+</html>
